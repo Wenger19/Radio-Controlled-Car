@@ -1,0 +1,225 @@
+/* ========================================
+ *
+ * Copyright YOUR COMPANY, THE YEAR
+ * All Rights Reserved
+ * UNPUBLISHED, LICENSED SOFTWARE.
+ *
+ * CONFIDENTIAL AND PROPRIETARY INFORMATION
+ * WHICH IS THE PROPERTY OF your company.
+ *
+ * ========================================
+*/
+
+#include "project.h"
+#include "stdio.h"
+
+uint16 SizeS;
+uint16 SizeT;
+
+//uint32 Distance[128];
+
+//uint8 i = 0;
+//uint8 i = 1;
+uint16 m = 0;
+
+uint8 CWA;
+uint8 CCWA;
+uint8 CWB;
+uint8 CCWB;
+uint8 Out_A = 0;
+uint8 Out_B = 0;
+
+int16 PingGas[8];
+int16 PongGas[8];
+
+int16 DataReady = 0;
+int16 Ping = 0;
+
+CY_ISR(isr_1)
+    {
+        Reset_Counter_Write(0);
+        Status_Read();
+    }   
+
+CY_ISR(isr_2)
+    {
+        if (Control_Mux_Read() == 0)
+        {
+            //SizeT = (Distance[i++] = 16777216 - Timer_ReadCapture());
+            SizeT = 16777216 - Timer_ReadCapture();
+        }
+        else
+        {
+            //SizeS = (Distance[i++] = 16777216 - Timer_ReadCapture());
+            SizeS = 16777216 - Timer_ReadCapture();
+        }
+        
+        Status_Read();
+        
+        Reset_Counter_Write(1);
+    }
+
+int main(void)
+{
+    
+    Timer_Start();   
+    PWM_Start();
+    LCD_Start();
+    
+    LCD_Enable();
+  
+    Status_InterruptEnable();
+    
+    isr_1_Start();
+    isr_2_Start();
+
+    isr_1_StartEx(isr_1);
+    isr_2_StartEx(isr_2);
+
+    isr_1_Enable();
+    isr_2_Enable();
+    
+
+    CyGlobalIntEnable; /* Enable global interrupts. */
+
+    /* Place your initialization/startup code here (e.g. MyInst_Start()) */
+
+    for(;;)
+    {   
+            if (m == 0)
+        {
+            Ping^=1;
+            DataReady = 1;
+        }
+    
+    if (Ping == 1)
+    {
+
+        PongGas[m] = ((SizeT));                    // Fill PongGas
+        
+        if (DataReady == 1)                 
+            {
+                LCD_ClearDisplay();            // Display PingGas
+                LCD_PrintNumber(PingGas[m]);
+            }
+        else
+            {
+                LCD_ClearDisplay();
+                LCD_PrintNumber(PongGas[m]);
+            }
+    }
+    else
+    {
+
+        PingGas[m] = ((SizeT));                    // Fill PingGas
+        
+        if (DataReady == 1)                 
+            {
+                LCD_ClearDisplay();             // Display PongGas
+                LCD_PrintNumber(PongGas[m]);
+            }
+        else
+            {
+                LCD_ClearDisplay();
+                LCD_PrintNumber(PingGas[m]);
+            }
+    }
+    
+    m = m+1;
+    
+    if (m==8)
+    {
+        m = 0;
+    }
+    else
+    {
+        CyDelayUs(1);
+    }
+        
+        CyDelay(10);
+        Control_Mux_Write(0);
+        CyDelay(10);
+        Control_Mux_Write(1);
+        CyDelay(10);
+        Control_Mux_Write(0);
+        
+        Control1_Write(CWA);
+        Control2_Write(CCWA);
+        Control3_Write(CWB);
+        Control4_Write(CCWB);
+        
+        PWM_WriteCompare1(Out_A);
+        PWM_WriteCompare2(Out_B);
+        
+        
+        if (SizeT <= 30000 && SizeS <= 30000) // Forward Left
+        {
+            CCWA = CCWB = 0;
+            CWA = CWB = 1;
+            Out_A = 255;
+            Out_B = 125;
+        }
+        else if (SizeT <= 30000 && SizeS > 30000 && SizeS <= 39000) // Forward Middle
+        {
+            CCWA = CCWB = 0;
+            CWA = CWB = 1;
+            Out_A = 255;
+            Out_B = 255;
+
+        }
+        else if (SizeT <= 30000 && SizeS > 39000) // Forward Right
+        {
+            CCWA = CCWB = 0;
+            CWA = CWB = 1;
+            Out_A = 125;
+            Out_B = 255;
+
+        }
+        else if (SizeT > 30000 && SizeT <= 39000 && SizeS <= 30000) // Stop Left
+        {
+            CWA = 1;
+            CCWA = CWB = CCWB = 0;
+            Out_A  = 255;
+            Out_B = 0;
+
+        }
+        else if (SizeT > 30000 && SizeT <= 39000 && SizeS > 30000 && SizeS <= 39000) // Stop Middle
+        {
+            CWA = CCWA = CWB = CCWB = 0;
+            Out_A = Out_B = 0;
+
+        }
+        else if (SizeT > 30000 && SizeT <= 39000 && SizeS > 39000) // Stop Right
+        {
+            CWB = 1;
+            CWA = CCWA = CCWB = 0;
+            Out_A = 0; 
+            Out_B = 255;
+
+        }
+        else if (SizeT > 39000 && SizeS <= 30000) // Reverse Left
+        {
+            CCWA = CCWB = 1;
+            CWA = CWB = 0;
+            Out_A = 255;
+            Out_B = 125;
+        }
+        else if (SizeT > 39000 && SizeS > 30000 && SizeS <= 39000) // Reverse Middle
+        {
+            CCWA = CCWB = 1;
+            CWA = CWB = 0;
+            Out_A = 255;
+            Out_B = 255;
+        }
+        else                                                    // Reverse Right
+        {
+            CCWA = CCWB = 1;
+            CWA = CWB = 0;
+            Out_A = 125;
+            Out_B = 255;
+        }
+        
+    }
+}
+
+/* [] END OF FILE */
